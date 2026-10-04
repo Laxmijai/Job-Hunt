@@ -19,17 +19,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // CORS
-const allowedOrigins = (process.env.CORS_ORIGIN || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const frontendURL = process.env.CORS_ORIGIN;
 
-const corsOptions = {
-  origin: allowedOrigins,
-  credentials: true,
-};
+console.log("CORS_ORIGIN:", frontendURL);
 
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin: frontendURL,
+    credentials: true,
+  })
+);
 
 // Health check
 app.get("/", (req, res) => {
