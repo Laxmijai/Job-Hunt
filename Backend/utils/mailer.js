@@ -1,29 +1,13 @@
-import nodemailer from "nodemailer";
 
-// Gmail transporter using OAuth2. Nodemailer uses the refresh token to
-// automatically get a fresh access token, so we don't manage tokens ourselves.
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+import { Resend } from "resend";
 
-    auth: {
-      type: "OAuth2",
-      user: process.env.EMAIL_USER,
-      clientId: process.env.CLIENT_ID,
-      clientSecret: process.env.CLIENT_SECRET,
-      refreshToken: process.env.REFRESH_TOKEN,
-    },
-  });
-};
-// Send the 6 digit OTP to the user during registration.
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Send the 6-digit OTP to the user during registration.
 export const sendOtpEmail = async (to, otp) => {
-  const transporter = createTransporter();
-
-  const mailOptions = {
-    from: `"Job Hunt" <${process.env.EMAIL_USER}>`,
-    to,
+  const { data, error } = await resend.emails.send({
+    from: "Job Hunt <onboarding@resend.dev>",
+    to: [to],
     subject: "Verify your email - Job Hunt",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #eee; border-radius: 12px;">
@@ -35,7 +19,12 @@ export const sendOtpEmail = async (to, otp) => {
         <p style="color: #888; font-size: 13px;">This code will expire in 10 minutes. If you didn't request this, you can ignore this email.</p>
       </div>
     `,
-  };
+  });
 
-  await transporter.sendMail(mailOptions);
+  if (error) {
+    console.error("Resend OTP email error:", error);
+    throw new Error("Failed to send OTP email");
+  }
+
+  return data;
 };
