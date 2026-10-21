@@ -385,17 +385,26 @@ export const updateProfile = async (req, res) => {
     
 
     // Initialize userId at the beginning
-    const userId = req.id; // middleware authentication
+    const userId= req.id; // middleware authentication
 
-    // Check if userId is valid
-    let user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        message: "User  not found",
-        success: false,
-      });
-    }
+console.log("req.id:", req.id);
+console.log("Authenticated user ID:", userId);
 
+if (!userId) {
+  return res.status(401).json({
+    message: "User ID missing. Authentication failed.",
+    success: false,
+  });
+}
+
+let user = await User.findById(userId);
+
+if (!user) {
+  return res.status(404).json({
+    message: `User not found for ID: ${userId}`,
+    success: false,
+  });
+}
     // Process skills if provided
     let skillsArray;
     if (skills) {
