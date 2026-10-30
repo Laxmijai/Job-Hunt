@@ -32,6 +32,12 @@ const jobSlice = createSlice({
     setSearchedQuery(state, action) {
       state.searchedQuery = action.payload;
     },
+    setSavedJobs(state, action) {
+      state.savedJobs = Array.isArray(action.payload) ? action.payload : [];
+    },
+    clearSavedJobs(state) {
+      state.savedJobs = [];
+    },
     saveJob(state, action) {
       const job = action.payload;
       if (!state.savedJobs) {
@@ -59,5 +65,7 @@ export const {
   setAllAppliedJobs,
   setSearchedQuery,
   saveJob,
+  setSavedJobs,
+  clearSavedJobs,
 } = jobSlice.actions;
 export default jobSlice.reducer;

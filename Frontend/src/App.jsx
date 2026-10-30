@@ -21,6 +21,8 @@ import Applicants from "./components/admincomponent/Applicants";
 import ProtectedRoute from "./components/admincomponent/ProtectedRoute";
 import SavedJobs from "./components/components_lite/SavedJobs.jsx";
 import TermsAndConditions from "./components/components_lite/TermsAndConditions.jsx";
+import CareerHub from "./components/dashboard/CareerHub.jsx";
+import ResumeBuilder from "./components/dashboard/ResumeBuilder.jsx";
 
 const appRouter = createBrowserRouter([
   { path: "/", element: <Home /> },
@@ -71,6 +73,14 @@ const appRouter = createBrowserRouter([
   {
     path: "/saved-jobs",
     element: <SavedJobs />,
+  },
+  {
+    path: "/career-hub",
+    element: <CareerHub />,
+  },
+  {
+    path: "/resume-builder",
+    element: <ResumeBuilder />,
   },
   {
     path: "/terms",

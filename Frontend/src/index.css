@@ -117,3 +117,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+/* Persistent dark theme support for existing pages and shadcn primitives. */
+html.dark body { background: #020617; color: #e2e8f0; }
+.dark .bg-white { background-color: #0f172a !important; }
+.dark .bg-gray-50, .dark .bg-slate-50 { background-color: #111827 !important; }
+.dark .bg-gray-100, .dark .bg-slate-100 { background-color: #1e293b !important; }
+.dark .text-black, .dark .text-gray-900, .dark .text-gray-800 { color: #f1f5f9 !important; }
+.dark .text-gray-700, .dark .text-gray-600 { color: #cbd5e1 !important; }
+.dark .text-gray-500, .dark .text-gray-400 { color: #94a3b8 !important; }
+.dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300 { border-color: #334155 !important; }
+.dark input, .dark textarea, .dark select { color-scheme: dark; }
+@media print { body * { visibility: hidden; } .resume-print, .resume-print * { visibility: visible; } .resume-print { position: absolute; inset: 0; width: 100%; } }

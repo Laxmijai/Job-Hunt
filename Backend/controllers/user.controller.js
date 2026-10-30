@@ -138,7 +138,8 @@ export const verifyOtp = async (req, res) => {
       .cookie("token", token, {
         maxAge: 1 * 24 * 60 * 60 * 1000,
         httpOnly: true,
-        sameSite: "Strict",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       })
       .json({
         message: "Email verified successfully.",
@@ -334,8 +335,8 @@ export const login = async (req, res) => {
       .cookie("token", token, {
         maxAge: 1 * 24 * 60 * 60 * 1000,
         httpOnly: true,
-        secure :true,
-        sameSite: "none",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       })
       .json({
         message: `Welcome back ${user.fullname}`,
@@ -353,12 +354,15 @@ export const login = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
-      return res.status(200).cookie("token", "", { maxAge: 0 }).json({
-          message: "Logged out successfully.",
-          success: true
-      })
+    return res.status(200).clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
+    }).json({ message: "Logged out successfully.", success: true });
   } catch (error) {
-      console.log(error);
+    console.error("Logout error:", error);
+    return res.status(500).json({ message: "Could not log out", success: false });
   }
 }
 
@@ -459,5 +463,75 @@ if (!user) {
       message: "Server Error updating profile",
       success: false,
     });
+  }
+};
+
+
+// Return the authenticated student's saved jobs.
+export const getSavedJobs = async (req, res) => {
+  try {
+    const user = await User.findById(req.id).populate({ path: "savedJobs", populate: { path: "company" } });
+    if (user?.role !== "Student") return res.status(403).json({ success: false, message: "Only students can access saved jobs" });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    return res.status(200).json({ success: true, jobs: user.savedJobs || [] });
+  } catch (error) {
+    console.error("getSavedJobs:", error);
+    return res.status(500).json({ success: false, message: "Could not load saved jobs" });
+  }
+};
+
+// Toggle a saved job for the authenticated student; saved jobs now belong to the account, not the browser.
+export const toggleSavedJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const user = await User.findById(req.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (user.role !== "Student") return res.status(403).json({ success: false, message: "Only students can save jobs" });
+    const { Job } = await import("../models/job.model.js");
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ success: false, message: "Job not found" });
+    user.savedJobs = user.savedJobs || [];
+    const exists = user.savedJobs.some((id) => id.toString() === jobId);
+    if (exists) user.savedJobs = user.savedJobs.filter((id) => id.toString() !== jobId);
+    else user.savedJobs.push(job._id);
+    await user.save();
+    return res.status(200).json({ success: true, saved: !exists, message: exists ? "Job removed from saved jobs" : "Job saved successfully" });
+  } catch (error) {
+    console.error("toggleSavedJob:", error);
+    return res.status(500).json({ success: false, message: "Could not update saved jobs" });
+  }
+};
+
+export const getNotifications = async (req, res) => {
+  try {
+    const { Notification } = await import("../models/notification.model.js");
+    const notifications = await Notification.find({ recipient: req.id }).sort({ createdAt: -1 }).limit(40).lean();
+    return res.status(200).json({ success: true, notifications, unreadCount: notifications.filter((item) => !item.read).length });
+  } catch (error) {
+    console.error("getNotifications:", error);
+    return res.status(500).json({ success: false, message: "Could not load notifications" });
+  }
+};
+
+export const markNotificationRead = async (req, res) => {
+  try {
+    const { Notification } = await import("../models/notification.model.js");
+    const notification = await Notification.findOneAndUpdate({ _id: req.params.id, recipient: req.id }, { read: true }, { new: true });
+    if (!notification) return res.status(404).json({ success: false, message: "Notification not found" });
+    return res.status(200).json({ success: true, notification });
+  } catch (error) {
+    console.error("markNotificationRead:", error);
+    return res.status(500).json({ success: false, message: "Could not update notification" });
+  }
+};
+
+export const markAllNotificationsRead = async (req, res) => {
+  try {
+    const { Notification } = await import("../models/notification.model.js");
+    await Notification.updateMany({ recipient: req.id, read: false }, { read: true });
+    return res.status(200).json({ success: true, message: "All notifications marked as read" });
+  } catch (error) {
+    console.error("markAllNotificationsRead:", error);
+    return res.status(500).json({ success: false, message: "Could not update notifications" });
   }
 };

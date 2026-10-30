@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema(
     otpExpiry: {
       type: Date,
     },
+    savedJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Job" }],
     role: {
       type: String,
       enum: ["Student", "Recruiter"],

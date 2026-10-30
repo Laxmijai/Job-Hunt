@@ -11,10 +11,14 @@ const applicationSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    interviewDate: { type: Date },
+    interviewMode: { type: String, enum: ["online", "offline", ""] },
+    meetingLink: { type: String },
+    notes: { type: String, maxlength: 2000 },
     status: {
       type: String,
-      enum: ["pending", "accepted", "rejected"],
-      default: "pending",
+      enum: ["applied", "shortlisted", "assessment", "interview", "selected", "rejected", "pending", "accepted"],
+      default: "applied",
     },
   },
   {

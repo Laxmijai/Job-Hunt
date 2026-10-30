@@ -58,23 +58,30 @@ export const postJob = async (req, res) => {
 //Users
 export const getAllJobs = async (req, res) => {
   try {
-    const keyword = req.query.keyword || "";
-    const query = {
-      $or: [
-        { title: { $regex: keyword, $options: "i" } },
-        { description: { $regex: keyword, $options: "i" } },
-      ],
-    };
-    const jobs = await Job.find(query)
-      .populate({
-        path: "company",
-      })
-      .sort({ createdAt: -1 });
-
-    if (!jobs) {
-      return res.status(404).json({ message: "No jobs found", status: false });
+    const { keyword = "", location = "", type = "", sort = "latest", experience = "" } = req.query;
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
+    const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const filters = [];
+    if (keyword.trim()) {
+      const expression = new RegExp(escapeRegex(keyword.trim()), "i");
+      filters.push({ $or: [{ title: expression }, { description: expression }, { requirements: expression }] });
     }
-    return res.status(200).json({ jobs, status: true });
+    if (location.trim()) filters.push({ location: new RegExp(escapeRegex(location.trim()), "i") });
+    if (type.trim()) filters.push({ jobType: new RegExp(`^${escapeRegex(type.trim())}$`, "i") });
+    if (experience !== "" && Number.isFinite(Number(experience))) filters.push({ experienceLevel: { $lte: Number(experience) } });
+    const query = filters.length ? { $and: filters } : {};
+    const total = await Job.countDocuments(query);
+    let jobs;
+    if (sort === "salary") {
+      const allMatchingJobs = await Job.find(query).populate("company");
+      allMatchingJobs.sort((a, b) => Number.parseFloat(String(b.salary).replace(/[^0-9.]/g, "")) - Number.parseFloat(String(a.salary).replace(/[^0-9.]/g, "")));
+      jobs = allMatchingJobs.slice((page - 1) * limit, page * limit);
+    } else {
+      const sortOption = sort === "oldest" ? { createdAt: 1 } : { createdAt: -1 };
+      jobs = await Job.find(query).populate("company").sort(sortOption).skip((page - 1) * limit).limit(limit);
+    }
+    return res.status(200).json({ jobs, status: true, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server Error", status: false });
@@ -206,5 +213,43 @@ export const getAdminJobs = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server Error", status: false });
+  }
+};
+
+// Compare a student's saved profile skills with one job. AI is optional; a transparent
+// deterministic fallback keeps the feature usable when AI credentials are not configured.
+export const analyzeJobMatch = async (req, res) => {
+  try {
+    const { User } = await import("../models/user.model.js");
+    const [user, job] = await Promise.all([
+      User.findById(req.id).select("fullname profile role"),
+      Job.findById(req.params.id),
+    ]);
+    if (!user || user.role !== "Student") return res.status(403).json({ success: false, message: "Only students can analyze job matches" });
+    if (!job) return res.status(404).json({ success: false, message: "Job not found" });
+    const skills = (user.profile?.skills || []).map((item) => String(item).trim()).filter(Boolean);
+    const requirements = (job.requirements || []).map((item) => String(item).trim()).filter(Boolean);
+    const fallbackMatched = requirements.filter((requirement) => skills.some((skill) => skill.toLowerCase().includes(requirement.toLowerCase()) || requirement.toLowerCase().includes(skill.toLowerCase())));
+    const fallbackMissing = requirements.filter((requirement) => !fallbackMatched.includes(requirement));
+    let result = {
+      score: requirements.length ? Math.round((fallbackMatched.length / requirements.length) * 100) : 0,
+      matchedSkills: fallbackMatched,
+      missingSkills: fallbackMissing,
+      summary: "This estimate compares the skills saved in your Job Hunt profile with the job's listed requirements. Add more profile skills for a more useful comparison.",
+      source: "profile-based-fallback",
+    };
+    try {
+      const prompt = "Assess candidate-job skill fit. Return ONLY valid JSON with keys score (integer 0-100), matchedSkills (array of strings), missingSkills (array of strings), summary (one short sentence). Do not infer experience or qualifications not supplied.";
+      const response = await askAI(prompt, JSON.stringify({ candidateSkills: skills, job: { title: job.title, description: job.description, requirements } }));
+      const json = response.match(/\{[\s\S]*\}/)?.[0];
+      if (json) {
+        const parsed = JSON.parse(json);
+        if (Number.isFinite(Number(parsed.score))) result = { score: Math.max(0, Math.min(100, Math.round(Number(parsed.score)))), matchedSkills: Array.isArray(parsed.matchedSkills) ? parsed.matchedSkills : fallbackMatched, missingSkills: Array.isArray(parsed.missingSkills) ? parsed.missingSkills : fallbackMissing, summary: String(parsed.summary || result.summary), source: "ai" };
+      }
+    } catch (aiError) { console.warn("AI match analysis unavailable; using profile-based fallback:", aiError.message); }
+    return res.status(200).json({ success: true, match: result });
+  } catch (error) {
+    console.error("analyzeJobMatch:", error);
+    return res.status(500).json({ success: false, message: "Could not analyze this job match" });
   }
 };

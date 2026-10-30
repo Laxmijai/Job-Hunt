@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Avatar, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Bookmark } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { saveJob } from "@/redux/jobSlice";
+import { setSavedJobs } from "@/redux/jobSlice";
+import axios from "axios";
+import { USER_API_ENDPOINT } from "@/utils/data";
+
 import { toast } from "sonner";
 
 const Job1 = ({ job }) => {
@@ -22,14 +25,26 @@ const Job1 = ({ job }) => {
   const { savedJobs } = useSelector((store) => store.job);
   const { user } = useSelector((store) => store.auth);
   const isSaved = savedJobs?.some((savedJob) => savedJob._id === job._id);
+  const [saving, setSaving] = useState(false);
 
-  const handleSaveJob = () => {
+  const handleSaveJob = async () => {
     if (!user) {
       toast.error("Please login to save jobs");
       navigate("/login");
       return;
     }
-    dispatch(saveJob(job));
+    if (saving) return;
+    setSaving(true);
+    try {
+      const response = await axios.post(`${USER_API_ENDPOINT}/saved-jobs/${job._id}`, {}, { withCredentials: true });
+      if (response.data.success) {
+        const next = isSaved ? savedJobs.filter((item) => item._id !== job._id) : [...(savedJobs || []), job];
+        dispatch(setSavedJobs(next));
+        toast.success(response.data.message);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Unable to update saved jobs");
+    } finally { setSaving(false); }
   };
 
   return (
@@ -40,7 +55,7 @@ const Job1 = ({ job }) => {
             ? "Today"
             : `${daysAgoFunction(job?.createdAt)} days ago`}
         </p>
-        <Button variant="outline" className="rounded-full" size="icon" onClick={handleSaveJob}>
+        <Button variant="outline" className="rounded-full" size="icon" onClick={handleSaveJob} disabled={saving}>
           <Bookmark fill={isSaved ? "black" : "none"} />
         </Button>
       </div>
@@ -83,6 +98,7 @@ const Job1 = ({ job }) => {
         <Button 
           className={isSaved ? "bg-gray-400 flex-1 sm:flex-none" : "bg-[#7209b7] flex-1 sm:flex-none"}
           onClick={handleSaveJob}
+          disabled={saving}
         >
           {isSaved ? "Saved" : "Save For Later"}
         </Button>
@@ -106,7 +122,7 @@ export default Job1;
 
 
 
-// import React from "react";
+// import React, { useState } from "react";
 // import { Button } from "../ui/button";
 // import { Bookmark, BookMarked } from "lucide-react";
 // import { Avatar, AvatarImage } from "../ui/avatar";

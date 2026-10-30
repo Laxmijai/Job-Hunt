@@ -26,7 +26,7 @@ const Applicants = () => {
       }
     };
     fetchAllApplicants();
-  }, []);
+  }, [params.id, dispatch]);
   return (
     <div>
       <Navbar />

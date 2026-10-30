@@ -1,9 +1,13 @@
 import { Application } from "../models/application.model.js";
 import { Job } from "../models/job.model.js";
+import { Notification } from "../models/notification.model.js";
+import { User } from "../models/user.model.js";
 
 export const applyJob = async (req, res) => {
   try {
     const userId = req.id;
+    const applicant = await User.findById(userId).select("role");
+    if (!applicant || applicant.role !== "Student") return res.status(403).json({ message: "Only students can apply for jobs", success: false });
     const jobId = req.params.id;
     if (!jobId) {
       return res
@@ -78,6 +82,9 @@ export const getApplicants = async (req, res) => {
     if (!job) {
       return res.status(404).json({ message: "Job not found", success: false });
     }
+    if (job.created_by.toString() !== req.id.toString()) {
+      return res.status(403).json({ message: "You are not allowed to view these applicants", success: false });
+    }
 
     return res.status(200).json({ job, success: true });
   } catch (error) {
@@ -88,7 +95,7 @@ export const getApplicants = async (req, res) => {
 
 export const updateStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, interviewDate, interviewMode, meetingLink, notes } = req.body;
     const applicationId = req.params.id;
     if (!status) {
       return res.status(400).json({
@@ -106,9 +113,30 @@ export const updateStatus = async (req, res) => {
       });
     }
 
-    // update the status
+    // Only the recruiter who created the related job can change its application.
+    const job = await Job.findById(application.job);
+    if (!job || job.created_by.toString() !== req.id.toString()) {
+      return res.status(403).json({ message: "You are not allowed to update this application", success: false });
+    }
+    const allowedStatuses = ["applied", "shortlisted", "assessment", "interview", "selected", "rejected", "pending", "accepted"];
+    if (!allowedStatuses.includes(status.toLowerCase())) return res.status(400).json({ message: "Invalid application status", success: false });
     application.status = status.toLowerCase();
+    const interviewWasChanged = interviewDate !== undefined && Boolean(interviewDate) && (!application.interviewDate || new Date(interviewDate).getTime() !== new Date(application.interviewDate).getTime());
+    if (interviewDate !== undefined) application.interviewDate = interviewDate || null;
+    if (interviewMode !== undefined) application.interviewMode = interviewMode;
+    if (meetingLink !== undefined) application.meetingLink = meetingLink;
+    if (notes !== undefined) application.notes = notes;
     await application.save();
+    const notificationMessage = interviewWasChanged
+      ? `Your interview for ${job.title} has been scheduled for ${new Date(interviewDate).toLocaleString()}.`
+      : `Your application for ${job.title} is now ${application.status}.`;
+    await Notification.create({
+      recipient: application.applicant,
+      title: interviewWasChanged ? "Interview scheduled" : "Application status updated",
+      message: notificationMessage,
+      type: interviewWasChanged ? "interview" : "application",
+      link: "/career-hub",
+    });
 
     return res
       .status(200)

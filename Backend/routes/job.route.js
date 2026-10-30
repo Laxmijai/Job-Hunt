@@ -6,6 +6,7 @@ import {
   getAllJobs,
   getJobById,
   getRecommendedJobs,
+  analyzeJobMatch,
   postJob,
 } from "../controllers/job.controller.js";
 
@@ -17,4 +18,5 @@ router.route("/get").get(getAllJobs);
 router.route("/getadminjobs").get(authenticateToken, getAdminJobs);
 router.route("/get/:id").get(getJobById);
 router.route("/recommendations/:id").get(getRecommendedJobs);
+router.route("/match/:id").get(authenticateToken, analyzeJobMatch);
 export default router;
