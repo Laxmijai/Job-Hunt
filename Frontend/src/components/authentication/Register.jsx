@@ -7,8 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { USER_API_ENDPOINT } from "@/utils/data";
 import { toast } from "sonner";
-import { useDispatch, useSelector } from "react-redux";
-import { setLoading } from "@/redux/authSlice";
+import { useSelector } from "react-redux";
 
 const Register = () => {
   const [input, setInput] = useState({
@@ -19,14 +18,12 @@ const Register = () => {
     phoneNumber: "",
     file: "",
   });
+  const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsAcceptedAt, setTermsAcceptedAt] = useState(null);
 
   const navigate = useNavigate();
 
-  const dispatch = useDispatch();
-
-  const { loading } = useSelector((store) => store.auth);
   const changeEventHandler = (e) => {
     setInput({ ...input, [e.target.name]: e.target.value });
   };
@@ -41,6 +38,11 @@ const Register = () => {
       return;
     }
     
+    if (!input.fullname.trim() || !input.email.trim() || !input.password || !input.phoneNumber.trim() || !input.role) {
+      toast.error("Please complete all required fields and select a role.");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("fullname", input.fullname);
     formData.append("email", input.email);
@@ -54,24 +56,27 @@ const Register = () => {
       formData.append("file", input.file);
     }
     try {
-      dispatch(setLoading(true));
+      setLoading(true);
       const res = await axios.post(`${USER_API_ENDPOINT}/register`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
         withCredentials: true,
+        timeout: 20000,
       });
       if (res.data.success) {
-        toast.success(res.data.message);
+        toast.success(res.data.message || "Registration successful. Verify your email to continue.");
         // go to OTP screen and carry the email along
         navigate("/verify-otp", { state: { email: input.email } });
+      } else {
+        toast.error(res.data.message || "Unable to register. Please try again.");
       }
     } catch (error) {
       console.log(error);
-      const errorMessage = error.response
-        ? error.response.data.message
-        : "An unexpected error occurred.";
+      const errorMessage = error.response?.data?.message || (error.code === "ECONNABORTED"
+        ? "Request timed out. Check that the backend is running."
+        : "Unable to register. Please check your connection and try again.");
       toast.error(errorMessage);
     } finally {
-      dispatch(setLoading(false));
+      setLoading(false);
     }
   };
 
@@ -107,6 +112,8 @@ const Register = () => {
               <Label className="text-gray-700 font-semibold">Fullname</Label>
               <Input
                 type="text"
+                required
+                autoComplete="name"
                 value={input.fullname}
                 name="fullname"
                 onChange={changeEventHandler}
@@ -118,6 +125,8 @@ const Register = () => {
               <Label className="text-gray-700 font-semibold">Email</Label>
               <Input
                 type="email"
+                required
+                autoComplete="email"
                 value={input.email}
                 name="email"
                 onChange={changeEventHandler}
@@ -129,6 +138,8 @@ const Register = () => {
               <Label className="text-gray-700 font-semibold">Password</Label>
               <Input
                 type="password"
+                required
+                autoComplete="new-password"
                 value={input.password}
                 name="password"
                 onChange={changeEventHandler}
@@ -140,6 +151,8 @@ const Register = () => {
               <Label className="text-gray-700 font-semibold">Phone Number</Label>
               <Input
                 type="tel"
+                required
+                autoComplete="tel"
                 value={input.phoneNumber}
                 name="phoneNumber"
                 onChange={changeEventHandler}
@@ -156,6 +169,7 @@ const Register = () => {
                 <div className="flex items-center space-x-2">
                   <Input
                     type="radio"
+                    required
                     name="role"
                     value="Student"
                     checked={input.role === "Student"}
@@ -167,6 +181,7 @@ const Register = () => {
                 <div className="flex items-center space-x-2">
                   <Input
                     type="radio"
+                    required
                     name="role"
                     value="Recruiter"
                     checked={input.role === "Recruiter"}

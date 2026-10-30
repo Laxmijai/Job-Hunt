@@ -6,6 +6,7 @@ import companyReducer from "./companyslice";
 import {
   persistStore,
   persistReducer,
+  createTransform,
   FLUSH,
   REHYDRATE,
   PAUSE,
@@ -15,10 +16,19 @@ import {
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import applicationSlice from "./applicationSlice";
+// Transient request flags must never survive a browser refresh. Older persisted
+// sessions may contain loading: true, which leaves auth buttons disabled forever.
+const resetTransientAuthState = createTransform(
+  (inboundState) => ({ ...inboundState, loading: false }),
+  (outboundState) => ({ ...outboundState, loading: false }),
+  { whitelist: ["auth"] }
+);
+
 const persistConfig = {
   key: "root",
-  version: 1,
+  version: 2,
   storage,
+  transforms: [resetTransientAuthState],
 };
 
 const rootReducer = combineReducers({

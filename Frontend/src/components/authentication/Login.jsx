@@ -10,9 +10,10 @@ import axios from "axios";
 import { toast } from "sonner";
 import { USER_API_ENDPOINT } from "@/utils/data.js";
 import { useDispatch, useSelector } from "react-redux";
-import { setLoading, setUser } from "@/redux/authSlice";
+import { setUser } from "@/redux/authSlice";
 
 const Login = () => {
+  const [loading, setLoading] = useState(false);
   const [input, setInput] = useState({
     email: "",
     password: "", 
@@ -20,7 +21,7 @@ const Login = () => {
   });
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { loading, user } = useSelector((store) => store.auth);
+  const { user } = useSelector((store) => store.auth);
   const changeEventHandler = (e) => {
     setInput({ ...input, [e.target.name]: e.target.value });
   };
@@ -31,16 +32,24 @@ const Login = () => {
   const submitHandler = async (e) => {
     e.preventDefault();
 
+    if (!input.email.trim() || !input.password || !input.role) {
+      toast.error("Please enter your email, password and select a role.");
+      return;
+    }
+
     try {
-      dispatch(setLoading(true)); // Start loading
+      setLoading(true);
       const res = await axios.post(`${USER_API_ENDPOINT}/login`, input, {
         headers: { "Content-Type": "application/json" },
         withCredentials: true,
+        timeout: 20000,
       });
       if (res.data.success) {
         dispatch(setUser(res.data.user));
         navigate("/");
-        toast.success(res.data.message);
+        toast.success(res.data.message || "Login successful");
+      } else {
+        toast.error(res.data.message || "Unable to login. Please try again.");
       }
     } catch (error) {
       const data = error.response?.data;
@@ -50,9 +59,9 @@ const Login = () => {
         navigate("/verify-otp", { state: { email: input.email } });
         return;
       }
-      toast.error(data?.message || "Login failed");
+      toast.error(data?.message || (error.code === "ECONNABORTED" ? "Request timed out. Check that the backend is running." : "Login failed. Please check your connection and try again."));
     } finally {
-      dispatch(setLoading(false)); // End loading
+      setLoading(false);
     }
   };
 
@@ -82,6 +91,8 @@ const Login = () => {
               <Label className="text-gray-700 font-semibold">Email</Label>
               <Input
                 type="email"
+                required
+                autoComplete="email"
                 value={input.email}
                 name="email"
                 onChange={changeEventHandler}
@@ -93,6 +104,8 @@ const Login = () => {
               <Label className="text-gray-700 font-semibold">Password</Label>
               <Input
                 type="password"
+                required
+                autoComplete="current-password"
                 value={input.password}
                 name="password"
                 onChange={changeEventHandler}
@@ -115,6 +128,7 @@ const Login = () => {
                 <div className="flex items-center space-x-2">
                   <Input
                     type="radio"
+                    required
                     name="role"
                     value="Student"
                     checked={input.role === "Student"}
@@ -126,6 +140,7 @@ const Login = () => {
                 <div className="flex items-center space-x-2">
                   <Input
                     type="radio"
+                    required
                     name="role"
                     value="Recruiter"
                     checked={input.role === "Recruiter"}
