@@ -12,7 +12,7 @@ export const register = async (req, res) => {
   try {
     const { fullname, email, phoneNumber, password, role, termsAcceptedAt } = req.body;
 
-    if (!fullname || !email || !phoneNumber || !password || !role) {
+    if (!fullname || !email || !phoneNumber || !password || !role || !["Student", "Recruiter"].includes(role)) {
       return res.status(404).json({
         message: "Missing required fields",
         success: false,
@@ -290,6 +290,7 @@ export const login = async (req, res) => {
         success: false,
       });
     }
+    if (user.isSuspended) return res.status(403).json({ message: "Your account has been suspended. Contact platform support.", success: false });
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(404).json({

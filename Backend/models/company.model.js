@@ -18,6 +18,8 @@ const companySchema = new mongoose.Schema({
     logo:{
         type:String // URL to company logo
     },
+    isVerified: { type: Boolean, default: false },
+    verifiedAt: { type: Date },
     userId:{
         type:mongoose.Schema.Types.ObjectId,
         ref:'User',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Avatar, AvatarImage } from "../ui/avatar";
@@ -44,7 +44,7 @@ const Navbar = () => {
       dispatch(clearSavedJobs());
       navigate("/");
       toast.success(res.data?.message || "Logged out successfully");
-    } catch (error) {
+    } catch {
       // Clear client state even if the network is unavailable; the cookie expires server-side.
       dispatch(setUser(null));
       dispatch(clearSavedJobs());
@@ -66,7 +66,7 @@ const Navbar = () => {
     loadNotifications();
     const interval = window.setInterval(loadNotifications, 45000);
     return () => { active = false; window.clearInterval(interval); };
-  }, [user?._id]);
+  }, [user]);
 
   const markAllRead = async () => {
     try {
@@ -93,10 +93,12 @@ const Navbar = () => {
         <Link to="/" aria-label="Job Hunt home"><h1 className="text-2xl font-bold"><span className="text-[#6B3AC2]">Job </span><span className="text-[#FA4F09]">Hunt</span></h1></Link>
         <nav className="hidden md:flex items-center gap-7">
           <ul className="flex font-medium items-center gap-6">
-            {user?.role === "Recruiter" ? <>
+            {user?.role === "Admin" ? <li><Link to="/admin/dashboard" className={linkClass}>Admin Dashboard</Link></li> : user?.role === "Recruiter" ? <>
               <li><Link to="/admin/companies" className={linkClass}>Companies</Link></li>
               <li><Link to="/admin/jobs" className={linkClass}>Jobs</Link></li>
               <li><Link to="/career-hub" className={linkClass}>Hiring Insights</Link></li>
+              <li><Link to="/recruiter/tools" className={linkClass}>Workspace</Link></li>
+              <li><Link to="/messages" className={linkClass}>Messages</Link></li>
             </> : <>
               <li><Link to="/Home" className={linkClass}>Home</Link></li>
               <li><Link to="/Browse" className={linkClass}>Browse</Link></li>
@@ -104,10 +106,12 @@ const Navbar = () => {
               {user?.role === "Student" && <>
                 <li><Link to="/saved-jobs" className={`${linkClass} inline-flex items-center gap-1`}><Bookmark size={15}/> Saved Jobs {savedJobs.length > 0 && <span className="bg-violet-100 text-violet-700 text-xs rounded-full px-2 py-0.5">{savedJobs.length}</span>}</Link></li>
                 <li><Link to="/career-hub" className={linkClass}>Career Hub</Link></li>
+                <li><Link to="/student/tools" className={linkClass}>Placement Tools</Link></li>
+                <li><Link to="/messages" className={linkClass}>Messages</Link></li>
               </>}
             </>}
           </ul>
-          {user && <Popover><PopoverTrigger asChild><button aria-label="Notifications" className="relative rounded-lg border border-slate-200 p-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"><Bell size={18}/>{unreadCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button></PopoverTrigger><PopoverContent align="end" className="w-80 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><div className="mb-3 flex items-center justify-between"><p className="font-semibold">Notifications</p><button onClick={markAllRead} className="text-xs font-semibold text-violet-600">Mark all read</button></div><div className="max-h-80 space-y-2 overflow-y-auto">{notifications.length ? notifications.map((notification) => <button key={notification._id} onClick={() => openNotification(notification)} className={`block w-full rounded-lg p-3 text-left ${notification.read ? "bg-slate-50 dark:bg-slate-800" : "bg-violet-50 dark:bg-violet-950/60"}`}><p className="text-sm font-semibold">{notification.title}</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{notification.message}</p><p className="mt-1 text-[10px] text-slate-400">{new Date(notification.createdAt).toLocaleString()}</p></button>) : <p className="py-6 text-center text-sm text-slate-500">You're all caught up.</p>}</div></PopoverContent></Popover>}
+          {user && <Popover><PopoverTrigger asChild><button aria-label="Notifications" className="relative rounded-lg border border-slate-200 p-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"><Bell size={18}/>{unreadCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button></PopoverTrigger><PopoverContent align="end" className="w-80 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><div className="mb-3 flex items-center justify-between"><p className="font-semibold">Notifications</p><button onClick={markAllRead} className="text-xs font-semibold text-violet-600">Mark all read</button></div><div className="max-h-80 space-y-2 overflow-y-auto">{notifications.length ? notifications.map((notification) => <button key={notification._id} onClick={() => openNotification(notification)} className={`block w-full rounded-lg p-3 text-left ${notification.read ? "bg-slate-50 dark:bg-slate-800" : "bg-violet-50 dark:bg-violet-950/60"}`}><p className="text-sm font-semibold">{notification.title}</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{notification.message}</p><p className="mt-1 text-[10px] text-slate-400">{new Date(notification.createdAt).toLocaleString()}</p></button>) : <p className="py-6 text-center text-sm text-slate-500">You are all caught up.</p>}</div></PopoverContent></Popover>}
           {themeButton}
           {!user ? <div className="flex items-center gap-2"><Link to="/login"><Button variant="outline">Login</Button></Link><Link to="/register"><Button className="bg-[#6B3AC2] hover:bg-[#552d9b]">Register</Button></Link></div> :
             <Popover><PopoverTrigger asChild><button aria-label="Open account menu"><Avatar className="cursor-pointer"><AvatarImage src={user?.profile?.profilePhoto} alt={user?.fullname || "Profile"}/></Avatar></button></PopoverTrigger>
@@ -117,10 +121,10 @@ const Navbar = () => {
               </PopoverContent>
             </Popover>}
         </nav>
-        <div className="md:hidden flex items-center gap-2">{user && <Popover><PopoverTrigger asChild><button aria-label="Notifications" className="relative rounded-lg border p-2 dark:border-slate-700"><Bell size={18}/>{unreadCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1 text-[10px] text-white">{unreadCount}</span>}</button></PopoverTrigger><PopoverContent align="end" className="w-80 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><div className="mb-3 flex items-center justify-between"><p className="font-semibold">Notifications</p><button onClick={markAllRead} className="text-xs text-violet-600">Mark all read</button></div><div className="max-h-72 space-y-2 overflow-y-auto">{notifications.map((notification) => <button key={notification._id} onClick={() => openNotification(notification)} className="block w-full rounded-lg bg-slate-50 p-3 text-left text-sm dark:bg-slate-800"><p className="font-semibold">{notification.title}</p><p className="text-xs text-slate-500">{notification.message}</p></button>)}{!notifications.length && <p className="py-5 text-center text-sm text-slate-500">You're all caught up.</p>}</div></PopoverContent></Popover>}{themeButton}<Button variant="ghost" size="icon" onClick={() => setIsMenuOpen((open) => !open)} aria-label="Toggle navigation">{isMenuOpen ? <X size={24}/> : <Menu size={24}/>}</Button></div>
+        <div className="md:hidden flex items-center gap-2">{user && <Popover><PopoverTrigger asChild><button aria-label="Notifications" className="relative rounded-lg border p-2 dark:border-slate-700"><Bell size={18}/>{unreadCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1 text-[10px] text-white">{unreadCount}</span>}</button></PopoverTrigger><PopoverContent align="end" className="w-80 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><div className="mb-3 flex items-center justify-between"><p className="font-semibold">Notifications</p><button onClick={markAllRead} className="text-xs text-violet-600">Mark all read</button></div><div className="max-h-72 space-y-2 overflow-y-auto">{notifications.map((notification) => <button key={notification._id} onClick={() => openNotification(notification)} className="block w-full rounded-lg bg-slate-50 p-3 text-left text-sm dark:bg-slate-800"><p className="font-semibold">{notification.title}</p><p className="text-xs text-slate-500">{notification.message}</p></button>)}{!notifications.length && <p className="py-5 text-center text-sm text-slate-500">You are all caught up.</p>}</div></PopoverContent></Popover>}{themeButton}<Button variant="ghost" size="icon" onClick={() => setIsMenuOpen((open) => !open)} aria-label="Toggle navigation">{isMenuOpen ? <X size={24}/> : <Menu size={24}/>}</Button></div>
       </div>
       {isMenuOpen && <nav className="md:hidden bg-white dark:bg-slate-950 dark:text-slate-100 border-t dark:border-slate-800 px-5 py-4 shadow-lg"><ul className="flex flex-col gap-4 font-medium">
-        {user?.role === "Recruiter" ? <><li><Link onClick={() => setIsMenuOpen(false)} to="/admin/companies">Companies</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/admin/jobs">Jobs</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/career-hub">Hiring Insights</Link></li></> : <><li><Link onClick={() => setIsMenuOpen(false)} to="/Home">Home</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/Browse">Browse</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/Jobs">Jobs</Link></li>{user?.role === "Student" && <><li><Link onClick={() => setIsMenuOpen(false)} to="/saved-jobs">Saved Jobs ({savedJobs.length})</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/career-hub">Career Hub</Link></li></>}</>}
+        {user?.role === "Admin" ? <><li><Link onClick={() => setIsMenuOpen(false)} to="/admin/dashboard">Admin dashboard</Link></li></> : user?.role === "Recruiter" ? <><li><Link onClick={() => setIsMenuOpen(false)} to="/admin/companies">Companies</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/admin/jobs">Jobs</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/career-hub">Hiring Insights</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/recruiter/tools">Workspace</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/messages">Messages</Link></li></> : <><li><Link onClick={() => setIsMenuOpen(false)} to="/Home">Home</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/Browse">Browse</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/Jobs">Jobs</Link></li>{user?.role === "Student" && <><li><Link onClick={() => setIsMenuOpen(false)} to="/saved-jobs">Saved Jobs ({savedJobs.length})</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/career-hub">Career Hub</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/student/tools">Placement Tools</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/messages">Messages</Link></li></>}</>}
         {!user ? <><li><Link onClick={() => setIsMenuOpen(false)} to="/login">Login</Link></li><li><Link onClick={() => setIsMenuOpen(false)} to="/register">Register</Link></li></> : <><li><Link onClick={() => setIsMenuOpen(false)} to="/Profile">Profile</Link></li><li><button onClick={logoutHandler} className="text-red-600">Logout</button></li></>}
       </ul></nav>}
     </header>

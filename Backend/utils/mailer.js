@@ -45,3 +45,16 @@ export const sendOtpEmail = async (to, otp) => {
 
   return await response.json();
 };
+
+export const sendNotificationEmail = async (to, title, message) => {
+  const senderEmail = process.env.EMAIL_USER;
+  if (!process.env.BREVO_API_KEY || !senderEmail || !to) return false;
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  const response = await fetch(BREVO_API_URL, {
+    method: "POST",
+    headers: { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ sender: { name: "Job Hunt", email: senderEmail }, to: [{ email: to }], subject: title, htmlContent: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px"><h2 style="color:#6B3AC2">Job Hunt</h2><h3>${escapeHtml(title)}</h3><p>${escapeHtml(message)}</p></div>` }),
+  });
+  if (!response.ok) throw new Error(`Email provider returned ${response.status}`);
+  return true;
+};

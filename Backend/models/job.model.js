@@ -45,6 +45,12 @@ const jobSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    status: { type: String, enum: ["published", "draft", "expired", "pending_review"], default: "published" },
+    expiresAt: { type: Date },
+    publishAt: { type: Date },
+    alertsSentAt: { type: Date },
+    publishedAt: { type: Date, default: Date.now },
+    views: { type: Number, default: 0 },
     applications: [
       {
         type: mongoose.Schema.Types.ObjectId,

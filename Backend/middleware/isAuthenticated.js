@@ -1,7 +1,8 @@
 
 import jwt from "jsonwebtoken";
+import { User } from "../models/user.model.js";
 
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   try {
     const token = req.cookies?.token;
 
@@ -24,7 +25,12 @@ const authenticateToken = (req, res, next) => {
       });
     }
 
+    const user = await User.findById(userId).select("role isSuspended");
+    if (!user || user.isSuspended) {
+      return res.status(401).json({ message: "Account is unavailable. Please contact support.", success: false });
+    }
     req.id = userId;
+    req.userRole = user.role;
     next();
   } catch (error) {
     console.error("Authentication error:", error.message);

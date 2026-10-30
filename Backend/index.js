@@ -8,14 +8,16 @@ import userRoute from "./routes/user.route.js";
 import companyRoute from "./routes/company.route.js";
 import jobRoute from "./routes/job.route.js";
 import applicationRoute from "./routes/application.route.js";
+import workspaceRoute from "./routes/workspace.route.js";
+import { startScheduledTasks } from "./utils/scheduledTasks.js";
 
 dotenv.config();
 
 const app = express();
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
 // CORS
@@ -43,11 +45,20 @@ app.use("/api/user", userRoute);
 app.use("/api/company", companyRoute);
 app.use("/api/job", jobRoute);
 app.use("/api/application", applicationRoute);
+app.use("/api/workspace", workspaceRoute);
+
+app.use((error, _req, res, next) => {
+  if (res.headersSent) return next(error);
+  const status = error?.name === "MulterError" || /Only JPG|PNG|WEBP|GIF/.test(error?.message || "") ? 400 : 500;
+  return res.status(status).json({ success: false, message: status === 400 ? error.message : "An unexpected server error occurred." });
+});
 
 // Port
 const PORT = process.env.PORT || 5001;
 
-app.listen(PORT, () => {
-  connectDB();
-  console.log(`Server is running on port ${PORT}`);
-});
+const startServer = async () => {
+  await connectDB();
+  app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+  startScheduledTasks();
+};
+startServer();

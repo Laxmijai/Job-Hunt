@@ -12,7 +12,8 @@ const askAI = async (systemPrompt, userPrompt) => {
 
   // don't let a slow AI call hang the request - give up after 8s
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeoutMs = Math.max(5000, Number(process.env.AI_TIMEOUT_MS) || 20000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -24,7 +25,7 @@ const askAI = async (systemPrompt, userPrompt) => {
       body: JSON.stringify({
         model,
         temperature: 0.2,
-        max_tokens: 200, // we only need a short list of ids back
+        max_tokens: Math.max(200, Number(process.env.AI_MAX_TOKENS) || 1400),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

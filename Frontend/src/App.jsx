@@ -1,5 +1,3 @@
-import React from "react";
-import Navbar from "./components/components_lite/Navbar";
 import Login from "./components/authentication/Login";
 import Register from "./components/authentication/Register";
 import VerifyOtp from "./components/authentication/VerifyOtp";
@@ -23,6 +21,10 @@ import SavedJobs from "./components/components_lite/SavedJobs.jsx";
 import TermsAndConditions from "./components/components_lite/TermsAndConditions.jsx";
 import CareerHub from "./components/dashboard/CareerHub.jsx";
 import ResumeBuilder from "./components/dashboard/ResumeBuilder.jsx";
+import StudentTools from "./components/dashboard/StudentTools.jsx";
+import RecruiterTools from "./components/dashboard/RecruiterTools.jsx";
+import AdminDashboard from "./components/dashboard/AdminDashboard.jsx";
+import Messages from "./components/dashboard/Messages.jsx";
 
 const appRouter = createBrowserRouter([
   { path: "/", element: <Home /> },
@@ -82,6 +84,10 @@ const appRouter = createBrowserRouter([
     path: "/resume-builder",
     element: <ResumeBuilder />,
   },
+  { path: "/student/tools", element: <StudentTools /> },
+  { path: "/recruiter/tools", element: <RecruiterTools /> },
+  { path: "/admin/dashboard", element: <AdminDashboard /> },
+  { path: "/messages", element: <Messages /> },
   {
     path: "/terms",
     element: <TermsAndConditions />,

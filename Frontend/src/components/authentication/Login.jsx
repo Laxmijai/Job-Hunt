@@ -149,6 +149,10 @@ const Login = () => {
                   />
                   <Label htmlFor="r2" className="cursor-pointer">Recruiter</Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <Input type="radio" required name="role" value="Admin" checked={input.role === "Admin"} onChange={changeEventHandler} className="cursor-pointer w-4 h-4 text-[#6B3AC2]" />
+                  <Label htmlFor="r3" className="cursor-pointer">Admin</Label>
+                </div>
               </RadioGroup>
             </div>
           </div>

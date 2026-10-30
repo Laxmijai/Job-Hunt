@@ -11,8 +11,12 @@ const applicationSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    resumeSnapshot: { type: String },
+    resumeLabel: { type: String },
+    source: { type: String, default: "job-listing", maxlength: 80 },
+    screeningAnswers: { type: Map, of: String, default: {} },
     interviewDate: { type: Date },
-    interviewMode: { type: String, enum: ["online", "offline", ""] },
+    interviewMode: { type: String, enum: ["online", "offline", "phone", ""] },
     meetingLink: { type: String },
     notes: { type: String, maxlength: 2000 },
     status: {

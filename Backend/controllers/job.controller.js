@@ -1,5 +1,7 @@
 import { Job } from "../models/job.model.js";
+import { Company } from "../models/company.model.js";
 import askAI from "../utils/aiClient.js";
+import { notifyMatchingStudents } from "../utils/jobAlerts.js";
 //Admin job posting
 export const postJob = async (req, res) => {
   try {
@@ -16,34 +18,27 @@ export const postJob = async (req, res) => {
     } = req.body;
     const userId = req.id;
 
-    if (
-      !title ||
-      !description ||
-      !requirements ||
-      !salary ||
-      !location ||
-      !jobType ||
-      !experience ||
-      !position ||
-      !companyId
-    ) {
+    if (!title?.trim() || !description?.trim() || !salary || !location?.trim() || !jobType || experience === undefined || experience === null || Number(experience) < 0 || !position || Number(position) < 1 || !companyId) {
       return res.status(400).json({
         message: "All fields are required",
         success: false,
       });
     }
+    const company = await Company.findOne({ _id: companyId, userId });
+    if (!company) return res.status(403).json({ message: "Choose a company registered under your account", success: false });
     const job = await Job.create({
-      title,
-      description,
-      requirements: requirements.split(","),
-      salary: Number(salary),
+      title: title.trim(),
+      description: description.trim(),
+      requirements: Array.isArray(requirements) ? requirements : String(requirements).split(",").map(item => item.trim()).filter(Boolean),
+      salary: String(salary),
       location,
       jobType,
-      experienceLevel: experience,
-      position,
+      experienceLevel: Number(experience),
+      position: Number(position),
       company: companyId,
       created_by: userId,
     });
+    await notifyMatchingStudents(job);
     res.status(201).json({
       message: "Job posted successfully.",
       job,
@@ -70,7 +65,9 @@ export const getAllJobs = async (req, res) => {
     if (location.trim()) filters.push({ location: new RegExp(escapeRegex(location.trim()), "i") });
     if (type.trim()) filters.push({ jobType: new RegExp(`^${escapeRegex(type.trim())}$`, "i") });
     if (experience !== "" && Number.isFinite(Number(experience))) filters.push({ experienceLevel: { $lte: Number(experience) } });
-    const query = filters.length ? { $and: filters } : {};
+    filters.push({ status: { $in: ["published", null] } });
+    filters.push({ $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] });
+    const query = { $and: filters };
     const total = await Job.countDocuments(query);
     let jobs;
     if (sort === "salary") {
@@ -92,7 +89,7 @@ export const getAllJobs = async (req, res) => {
 export const getJobById = async (req, res) => {
   try {
     const jobId = req.params.id;
-    const job = await Job.findById(jobId).populate({
+    const job = await Job.findOneAndUpdate({ _id: jobId, status: { $in: ["published", null] }, $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] }, { $inc: { views: 1 } }, { new: true }).populate("company", "name logo userId website location").populate({
       path: "applications",
     });
     if (!job) {
@@ -110,14 +107,14 @@ export const getRecommendedJobs = async (req, res) => {
   try {
     const jobId = req.params.id;
 
-    const currentJob = await Job.findById(jobId).populate("company");
+    const currentJob = await Job.findOne({ _id: jobId, status: { $in: ["published", null] }, $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] }).populate("company");
     if (!currentJob) {
       return res.status(404).json({ message: "Job not found", status: false });
     }
 
     // all other jobs are the candidates we can recommend from
     // keep this small so the AI prompt stays light and responds fast
-    const candidates = await Job.find({ _id: { $ne: jobId } })
+    const candidates = await Job.find({ _id: { $ne: jobId }, status: { $in: ["published", null] }, $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] })
       .populate("company")
       .sort({ createdAt: -1 })
       .limit(12);
@@ -223,7 +220,7 @@ export const analyzeJobMatch = async (req, res) => {
     const { User } = await import("../models/user.model.js");
     const [user, job] = await Promise.all([
       User.findById(req.id).select("fullname profile role"),
-      Job.findById(req.params.id),
+      Job.findOne({ _id: req.params.id, status: { $in: ["published", null] }, $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] }),
     ]);
     if (!user || user.role !== "Student") return res.status(403).json({ success: false, message: "Only students can analyze job matches" });
     if (!job) return res.status(404).json({ success: false, message: "Job not found" });

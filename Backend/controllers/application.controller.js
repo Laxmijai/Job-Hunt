@@ -2,11 +2,13 @@ import { Application } from "../models/application.model.js";
 import { Job } from "../models/job.model.js";
 import { Notification } from "../models/notification.model.js";
 import { User } from "../models/user.model.js";
+import { ResumeProfile, ScreeningQuestion } from "../models/workspace.model.js";
+import { sendNotificationEmail } from "../utils/mailer.js";
 
 export const applyJob = async (req, res) => {
   try {
     const userId = req.id;
-    const applicant = await User.findById(userId).select("role");
+    const applicant = await User.findById(userId).select("role profile.resume");
     if (!applicant || applicant.role !== "Student") return res.status(403).json({ message: "Only students can apply for jobs", success: false });
     const jobId = req.params.id;
     if (!jobId) {
@@ -26,16 +28,32 @@ export const applyJob = async (req, res) => {
       });
     }
     //check if the job exists or not
-    const job = await Job.findById(jobId);
+    const job = await Job.findOne({ _id: jobId, status: { $in: ["published", null] }, $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] });
     if (!job) {
       return res.status(404).json({ message: "Job not found", success: false });
     }
     // create a new application
 
-    const newApplication = await Application.create({
-      job: jobId,
-      applicant: userId,
-    });
+    let resumeSnapshot = applicant.profile?.resume || "";
+    let resumeLabel = "Profile resume";
+    if (req.body?.resumeId) {
+      const selectedResume = await ResumeProfile.findOne({ _id: req.body.resumeId, owner: userId });
+      if (!selectedResume) return res.status(400).json({ message: "Selected resume was not found", success: false });
+      resumeSnapshot = selectedResume.url;
+      resumeLabel = selectedResume.name;
+    } else {
+      const primaryResume = await ResumeProfile.findOne({ owner: userId, isPrimary: true });
+      if (primaryResume) { resumeSnapshot = primaryResume.url; resumeLabel = primaryResume.name; }
+    }
+    const requiredQuestions = await ScreeningQuestion.find({ job: jobId, required: true }).select("_id question type options");
+    const screeningAnswers = req.body?.screeningAnswers && typeof req.body.screeningAnswers === "object" ? req.body.screeningAnswers : {};
+    for (const question of requiredQuestions) {
+      const answer = String(screeningAnswers[question._id] || "").trim();
+      if (!answer) return res.status(400).json({ message: `Please answer: ${question.question}`, success: false });
+      if (question.type === "choice" && !question.options.includes(answer)) return res.status(400).json({ message: `Choose a valid answer for: ${question.question}`, success: false });
+      if (question.type === "yes-no" && !["yes", "no"].includes(answer.toLowerCase())) return res.status(400).json({ message: `Answer yes or no for: ${question.question}`, success: false });
+    }
+    const newApplication = await Application.create({ job: jobId, applicant: userId, resumeSnapshot, resumeLabel, source: String(req.body?.source || "job-listing").slice(0,80), screeningAnswers });
     job.applications.push(newApplication._id);
     await job.save();
 
@@ -77,7 +95,7 @@ export const getApplicants = async (req, res) => {
     const job = await Job.findById(jobId).populate({
       path: "applications",
       options: { sort: { createdAt: -1 } },
-      populate: { path: "applicant", options: { sort: { createdAt: -1 } } },
+      populate: { path: "applicant", select: "fullname email role profile createdAt", options: { sort: { createdAt: -1 } } },
     });
     if (!job) {
       return res.status(404).json({ message: "Job not found", success: false });
@@ -137,6 +155,11 @@ export const updateStatus = async (req, res) => {
       type: interviewWasChanged ? "interview" : "application",
       link: "/career-hub",
     });
+    const applicantUser = await User.findById(application.applicant).select("email notificationPreferences");
+    if (applicantUser?.email && applicantUser.notificationPreferences?.email !== false && process.env.BREVO_API_KEY) {
+      try { await sendNotificationEmail(applicantUser.email, interviewWasChanged ? "Interview scheduled" : "Application update", notificationMessage); }
+      catch (emailError) { console.error("Application notification email failed:", emailError.message); }
+    }
 
     return res
       .status(200)

@@ -19,6 +19,8 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    isSuspended: { type: Boolean, default: false },
+    notificationPreferences: { inApp: { type: Boolean, default: true }, email: { type: Boolean, default: true } },
     isVerified: {
       type: Boolean,
       default: false,
@@ -32,7 +34,7 @@ const userSchema = new mongoose.Schema(
     savedJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Job" }],
     role: {
       type: String,
-      enum: ["Student", "Recruiter"],
+      enum: ["Student", "Recruiter", "Admin"],
       default: "Student",
       required: true,
     },
