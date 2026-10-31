@@ -10,7 +10,23 @@ import { sendNotificationEmail } from "../utils/mailer.js";
 import { notifyMatchingStudents } from "../utils/jobAlerts.js";
 
 const fail = (res, error, status = 500) => res.status(status).json({ success: false, message: error });
-const safeJson = (value) => { try { const match = String(value).match(/\{[\s\S]*\}|\[[\s\S]*\]/); return match ? JSON.parse(match[0]) : null; } catch { return null; } };
+const safeJson = (value) => {
+  if (typeof value !== "string") return null;
+  const text = value.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  try { return JSON.parse(text); } catch { /* Try to isolate a JSON object/array from short model commentary. */ }
+  const start = Math.min(...[text.indexOf("{"), text.indexOf("[")].filter(index => index >= 0));
+  if (!Number.isFinite(start)) return null;
+  const opening = text[start], closing = opening === "{" ? "}" : "]";
+  let depth = 0, quoted = false, escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (quoted) { if (escaped) escaped = false; else if (char === "\\") escaped = true; else if (char === '"') quoted = false; continue; }
+    if (char === '"') { quoted = true; continue; }
+    if (char === opening) depth++;
+    if (char === closing && --depth === 0) { try { return JSON.parse(text.slice(start, i + 1)); } catch { return null; } }
+  }
+  return null;
+};
 const notify = async (recipient, title, message, link = "/career-hub", type = "system") => {
   if (!recipient) return;
   await Notification.create({ recipient, title, message, link, type });
@@ -31,7 +47,7 @@ export const generateJobDraft = async (req, res) => {
     if (!title?.trim() || !location?.trim() || !jobType) return fail(res, "Enter a job title, location and job type first", 400);
     const prompt = `Create a practical job description for a real hiring team. Return JSON with keys title, description, requirements (array), salary (string), experienceLevel (number), location, jobType, position (number). Do not invent company-specific facts. Use the supplied facts and sensible editable suggestions. If no salary is supplied, use "Not specified" rather than inventing one. Keep language natural, concise and non-promotional.\n${JSON.stringify({ title, company, experienceLevel, location, jobType, notes })}`;
     let draft;
-    try { draft = safeJson(await askAI("You write clear, realistic job descriptions. Return JSON only.", prompt)); } catch (e) { return fail(res, `AI service unavailable: ${e.message}`, 503); }
+    try { draft = safeJson(await askAI("You write clear, realistic job descriptions. Return JSON only.", prompt)); } catch (e) { return fail(res, e.message || "AI service unavailable. Please try again later.", 503); }
     if (!draft || typeof draft !== "object" || Array.isArray(draft)) return fail(res, "The AI response could not be read. Please try again.", 502);
     draft.title = String(draft.title || title).slice(0, 150);
     draft.description = String(draft.description || "").slice(0, 12000);
@@ -201,12 +217,41 @@ export const scheduleInterview = async (req, res) => {
 export const getInterviews = async (req, res) => { try { const filter = req.userRole === "Recruiter" ? { recruiter: req.id } : { student: req.id }; res.json({ success: true, interviews: await Interview.find(filter).populate("job", "title").populate("student", "fullname email").populate("recruiter", "fullname email").sort({ scheduledAt: 1 }) }); } catch (e) { fail(res, e.message); } };
 export const saveInterviewFeedback = async (req, res) => { try { const interview = await Interview.findOne({ _id: req.params.id, recruiter: req.id }); if (!interview) return fail(res, "Interview not found", 404); interview.feedback = String(req.body.feedback || "").slice(0,4000); interview.rating = req.body.rating ? Number(req.body.rating) : undefined; interview.status = "completed"; await interview.save(); res.json({ success: true, interview }); } catch (e) { fail(res, e.message, 400); } };
 
+// Search only people with a legitimate hiring relationship to the current user.
+export const searchMessageRecipients = async (req, res) => {
+  try {
+    const term = String(req.query.search || "").trim().slice(0, 80);
+    if (term.length < 2) return res.json({ success: true, recipients: [] });
+    let allowedIds = [];
+    if (req.userRole === "Recruiter") {
+      const jobIds = await Job.find({ created_by: req.id }).distinct("_id");
+      allowedIds = await Application.find({ job: { $in: jobIds } }).distinct("applicant");
+    } else if (req.userRole === "Student") {
+      const appliedJobIds = await Application.find({ applicant: req.id }).distinct("job");
+      allowedIds = await Job.find({ _id: { $in: appliedJobIds } }).distinct("created_by");
+    }
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const recipients = await User.find({ _id: { $in: allowedIds, $ne: req.id }, $or: [{ fullname: { $regex: escaped, $options: "i" } }, { email: { $regex: escaped, $options: "i" } }] }).select("fullname email role profile.profilePhoto").limit(12);
+    res.json({ success: true, recipients });
+  } catch (e) { fail(res, "Could not search message recipients"); }
+};
+
 // Basic persisted messaging. Conversation membership is checked on every read/write.
 export const startConversation = async (req, res) => {
   try {
     const otherId = req.body.userId;
     if (!validId(otherId) || String(otherId) === String(req.id)) return fail(res, "Choose a valid recipient", 400);
     const other = await User.findById(otherId).select("role"); if (!other) return fail(res, "Recipient not found", 404);
+    if (!["Student", "Recruiter"].includes(req.userRole) || !["Student", "Recruiter"].includes(other.role) || other.role === req.userRole) return fail(res, "Messaging is available between students and recruiters only", 403);
+    let related = false;
+    if (req.userRole === "Recruiter") {
+      const ownedJobs = await Job.find({ created_by: req.id }).distinct("_id");
+      related = await Application.exists({ job: { $in: ownedJobs }, applicant: otherId });
+    } else {
+      const appliedJobs = await Application.find({ applicant: req.id }).distinct("job");
+      related = await Job.exists({ _id: { $in: appliedJobs }, created_by: otherId });
+    }
+    if (!related) return fail(res, "You can message only students or recruiters connected through an application", 403);
     const participants = [req.id, otherId].sort();
     let conversation = await Conversation.findOne({ participants: { $all: participants }, $expr: { $eq: [{ $size: "$participants" }, 2] } });
     if (!conversation) conversation = await Conversation.create({ participants, job: req.body.job || undefined });
@@ -229,7 +274,7 @@ export const studentAnalytics = async (req, res) => {
     const completedInterviews = records.filter(r => r.kind === "mock-interview" && r.payload?.completed).length;
     const prepDays = new Set(records.filter(r => r.kind === "prep-log").map(r => new Date(r.createdAt).toISOString().slice(0,10))).size;
     const parts = [];
-    if (user?.profile?.resume || resumes) parts.push({ label: "Resume", score: 100, weight: 20 });
+    if (user?.profile?.resume || resumes > 0) parts.push({ label: "Resume", score: 100, weight: 20 });
     if ((user?.profile?.skills || []).length) parts.push({ label: "Skills", score: Math.min(100, Math.round((user.profile.skills.length / 8) * 100)), weight: 25 });
     if (records.some(r => r.kind === "mock-interview")) parts.push({ label: "Mock interview", score: Math.min(100, completedInterviews * 50), weight: 25 });
     if (records.some(r => r.kind === "prep-log")) parts.push({ label: "Preparation consistency", score: Math.min(100, prepDays * 10), weight: 10 });

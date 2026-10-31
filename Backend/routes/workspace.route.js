@@ -6,7 +6,7 @@ import {
   generateJobDraft, saveJobDraft, getJobDrafts, publishDraft, duplicateJob, bulkCreateJobs,
   createCareerRecord, getCareerRecords, deleteCareerRecord, analyzeResume, startMockInterview, submitMockInterview, generateRoadmap,
   addRecruiterNote, getRecruiterNotes, addScreeningQuestion, getScreeningQuestions, bulkApplicationAction,
-  scheduleInterview, getInterviews, saveInterviewFeedback, startConversation, getConversations, getMessages, sendMessage,
+  scheduleInterview, getInterviews, saveInterviewFeedback, startConversation, getConversations, getMessages, sendMessage, searchMessageRecipients,
   studentAnalytics, recruiterAnalytics, reportContent,
   adminOverview, adminUsers, adminSetSuspension, adminCompanies, adminVerifyCompany, adminJobs, adminSetJobStatus, adminReports, adminUpdateReport, adminActivity, rankApplicants, compareCandidates, getResumeProfiles, createResumeProfile, setPrimaryResume, deleteResumeProfile, updateCareerRecord, generateCompanyPrep, saveSelfAssessment, getPublicScreeningQuestions,
 } from "../controllers/workspace.controller.js";
@@ -50,6 +50,7 @@ router.post("/recruiter/interviews", requireRole("Recruiter"), scheduleInterview
 router.post("/recruiter/interviews/:id/feedback", requireRole("Recruiter"), saveInterviewFeedback);
 router.get("/interviews", getInterviews);
 
+router.get("/messages/recipients", requireRole("Student", "Recruiter"), searchMessageRecipients);
 router.post("/messages/conversations", startConversation);
 router.get("/messages/conversations", getConversations);
 router.get("/messages/conversations/:id", getMessages);
