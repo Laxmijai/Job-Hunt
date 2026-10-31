@@ -87,14 +87,6 @@ export const publishDraft = async (req, res) => {
     res.status(201).json({ success: true, job, message: scheduled ? "Job scheduled for publishing" : "Job published" });
   } catch (e) { fail(res, e.message, 400); }
 };
-export const duplicateJob = async (req, res) => {
-  try {
-    const source = await ownsJob(req.params.id, req.id);
-    if (!source) return fail(res, "Job not found", 404);
-    const draft = await JobDraft.create({ owner: req.id, title: `${source.title} (Copy)`, description: source.description, requirements: source.requirements, salary: source.salary, experienceLevel: source.experienceLevel, location: source.location, jobType: source.jobType, position: source.position, company: source.company });
-    res.status(201).json({ success: true, draft });
-  } catch (e) { fail(res, e.message); }
-};
 export const bulkCreateJobs = async (req, res) => {
   try {
     if (!Array.isArray(req.body.jobs) || req.body.jobs.length < 1 || req.body.jobs.length > 100) return fail(res, "Upload between 1 and 100 job rows", 400);
@@ -294,8 +286,14 @@ export const recruiterAnalytics = async (req, res) => {
     const monthly = {};
     for (const app of apps) { const key = `${app.createdAt.getFullYear()}-${String(app.createdAt.getMonth()+1).padStart(2,"0")}`; monthly[key] = (monthly[key]||0)+1; }
     const sources = {}; for (const app of apps) { const key = app.source || "unknown"; sources[key] = (sources[key]||0)+1; }
-    const jobMetrics = jobs.map(job => ({ _id: job._id, title: job.title, views: job.views || 0, applications: apps.filter(a=>String(a.job)===String(job._id)).length, createdAt: job.createdAt, status: job.status }));
-    res.json({ success: true, analytics: { jobs: jobMetrics, monthly: Object.entries(monthly).sort(([a],[b])=>a.localeCompare(b)).map(([month,count])=>({month,count})), sources, totalJobs: jobs.length, totalViews: jobs.reduce((n,j)=>n+j.views,0), totalApplications: apps.length, stages: Object.fromEntries(stages.map(s=>[s,apps.filter(a=>a.status===s).length])) } });
+    const jobMetrics = jobs.map(job => {
+      const jobApps = apps.filter(a => String(a.job) === String(job._id));
+      const jobStages = Object.fromEntries(stages.map(stage => [stage, jobApps.filter(a => (a.status === "pending" ? "applied" : a.status === "accepted" ? "selected" : a.status) === stage).length]));
+      const views = job.views || 0;
+      return { _id: job._id, title: job.title, views, applications: jobApps.length, applyRate: views ? Math.round((jobApps.length / views) * 1000) / 10 : 0, createdAt: job.createdAt, status: job.status, stages: jobStages };
+    });
+    const normalizedStages = Object.fromEntries(stages.map(stage => [stage, apps.filter(a => (a.status === "pending" ? "applied" : a.status === "accepted" ? "selected" : a.status) === stage).length]));
+    res.json({ success: true, analytics: { jobs: jobMetrics, monthly: Object.entries(monthly).sort(([a],[b])=>a.localeCompare(b)).map(([month,count])=>({month,count})), sources, totalJobs: jobs.length, activeJobs: jobs.filter(j => j.status === "published").length, totalViews: jobs.reduce((n,j)=>n+j.views,0), totalApplications: apps.length, stages: normalizedStages } });
   }
   catch (e) { fail(res, e.message); }
 };

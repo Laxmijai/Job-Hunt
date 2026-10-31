@@ -3,7 +3,7 @@ import authenticateToken from "../middleware/isAuthenticated.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import {
-  generateJobDraft, saveJobDraft, getJobDrafts, publishDraft, duplicateJob, bulkCreateJobs,
+  generateJobDraft, saveJobDraft, getJobDrafts, publishDraft, bulkCreateJobs,
   createCareerRecord, getCareerRecords, deleteCareerRecord, analyzeResume, startMockInterview, submitMockInterview, generateRoadmap,
   addRecruiterNote, getRecruiterNotes, addScreeningQuestion, getScreeningQuestions, bulkApplicationAction,
   scheduleInterview, getInterviews, saveInterviewFeedback, startConversation, getConversations, getMessages, sendMessage, searchMessageRecipients,
@@ -37,7 +37,6 @@ router.post("/recruiter/jobs/generate", requireRole("Recruiter"), rateLimit({ ma
 router.get("/recruiter/jobs/drafts", requireRole("Recruiter"), getJobDrafts);
 router.post("/recruiter/jobs/drafts", requireRole("Recruiter"), saveJobDraft);
 router.post("/recruiter/jobs/drafts/:id/publish", requireRole("Recruiter"), publishDraft);
-router.post("/recruiter/jobs/:id/duplicate", requireRole("Recruiter"), duplicateJob);
 router.post("/recruiter/jobs/bulk", requireRole("Recruiter"), bulkCreateJobs);
 router.post("/recruiter/notes", requireRole("Recruiter"), addRecruiterNote);
 router.get("/recruiter/notes", requireRole("Recruiter"), getRecruiterNotes);
